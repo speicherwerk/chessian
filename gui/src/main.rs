@@ -33,7 +33,7 @@ pub const COLOR_BLACK: Color = Color::from_hex(0xFFC0CB);
 /// A blue color used for accents
 pub const COLOR_BLUE: Color = Color::from_hex(0xB3EBF2);
 /// A red color used for accents
-pub const COLOR_RED: Color = Color::from_hex(0xFF746C);
+pub const COLOR_RED: Color = Color::from_hex(0x8fbc8f);
 /// The radius (in pixels) of the circles indicating legal moves
 pub const MOVE_INDICATOR_SIZE: f32 = 15.0;
 /// The color of the move indicator circle
@@ -81,6 +81,8 @@ struct GuiState {
     bg_eval_stop_flag: Arc<AtomicBool>,
     /// The handle to the background evaluation thread.
     bg_eval_handle: mpsc::Receiver<Option<ChooserResult>>,
+    /// The square of the piece being dragged
+    dragged_piece_square: Option<Square>,
 }
 
 #[macroquad::main(conf)]
@@ -146,6 +148,17 @@ async fn main() -> Result<(), String> {
                 &mut pending_promotion_move,
                 &mut clickable_moves,
             );
+        }
+
+        if is_mouse_button_released(MouseButton::Left) && gui_state.dragged_piece_square.is_some() {
+            handle_left_click(
+                &mut gui_state,
+                &mut game_state,
+                hovered_square,
+                &mut pending_promotion_move,
+                &mut clickable_moves,
+            );
+            gui_state.dragged_piece_square = None;
         }
 
         next_frame().await
@@ -368,6 +381,7 @@ fn draw_board(
     hovered_square: Square,
     is_mouse_in_board: bool,
 ) {
+    let mut draw_dragged_piece = None;
     for y in 0..=7 {
         for x in 0..=7 {
             let square = Square::make_square(
@@ -386,6 +400,9 @@ fn draw_board(
             if square == hovered_square && is_mouse_in_board {
                 draw_rectangle_lines(x_pos, y_pos, FIELD_SIZE, FIELD_SIZE, 7.5, COLOR_BLUE);
             }
+            if gui_state.dragged_piece_square == Some(square) {
+                draw_rectangle_lines(x_pos, y_pos, FIELD_SIZE, FIELD_SIZE, 7.5, COLOR_RED);
+            }
             // Draw piece?
             if gui_state.draw_pieces
                 && let Some((piece, color)) = game_state
@@ -393,7 +410,19 @@ fn draw_board(
                     .piece_on(square)
                     .zip(game_state.board().color_on(square))
             {
-                draw_piece(piece, color, x_pos, y_pos, piece_sprites);
+                if gui_state.dragged_piece_square == Some(square) {
+                    draw_dragged_piece = Some(move || {
+                        draw_piece(
+                            piece,
+                            color,
+                            mouse_position().0 - FIELD_SIZE / 2.0,
+                            mouse_position().1 - FIELD_SIZE / 2.0,
+                            piece_sprites,
+                        );
+                    });
+                } else {
+                    draw_piece(piece, color, x_pos, y_pos, piece_sprites);
+                }
             }
 
             if gui_state.draw_square_names {
@@ -412,6 +441,9 @@ fn draw_board(
                 draw_rectangle_lines(x_pos, y_pos, FIELD_SIZE, FIELD_SIZE, 7.5, COLOR_RED);
             }
         }
+    }
+    if let Some(draw_dragged_piece) = draw_dragged_piece {
+        draw_dragged_piece();
     }
 }
 
@@ -606,6 +638,9 @@ fn handle_left_click(
         .unwrap_or(false);
     if side_to_move_clicked {
         *clickable_moves = game_state.legal_moves_from(hovered_square);
+        if gui_state.dragged_piece_square.is_none() {
+            gui_state.dragged_piece_square = Some(hovered_square);
+        }
     } else {
         if let Some(m) = clickable_moves
             .iter()
@@ -701,6 +736,7 @@ impl GuiState {
             bg_eval_best_move: None,
             bg_eval_stop_flag: bg_eval_stop_flag.clone(),
             bg_eval_handle: spawn_eval_thread(board.clone(), 1, bg_eval_stop_flag.clone()),
+            dragged_piece_square: None,
         }
     }
 }
