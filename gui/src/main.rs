@@ -679,20 +679,16 @@ fn handle_char_pressed(
             gui_state.engine_move_next_frame = true;
             clickable_moves.clear();
         }
-        'z' if control_down => {
-            if game_state.undo_move() {
-                clickable_moves.clear();
-                if gui_state.bg_eval {
-                    restart_bg_eval(gui_state, game_state);
-                }
+        'z' if control_down && game_state.undo_move() => {
+            clickable_moves.clear();
+            if gui_state.bg_eval {
+                restart_bg_eval(gui_state, game_state);
             }
         }
-        'y' if control_down => {
-            if game_state.redo_move() {
-                clickable_moves.clear();
-                if gui_state.bg_eval {
-                    restart_bg_eval(gui_state, game_state);
-                }
+        'y' if control_down && game_state.redo_move() => {
+            clickable_moves.clear();
+            if gui_state.bg_eval {
+                restart_bg_eval(gui_state, game_state);
             }
         }
         's' => gui_state.draw_square_names = !gui_state.draw_square_names,
